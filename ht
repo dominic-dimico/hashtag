@@ -1,0 +1,54 @@
+#!/usr/bin/python
+
+import argparse
+import hashtag;
+
+from pprint import pprint as pp
+
+
+
+################################################################################
+# Main method
+################################################################################
+if __name__ == '__main__':
+
+  parser = argparse.ArgumentParser()
+  parser.add_argument('-q', '--query',   help='Database query',   default=None)
+  parser.add_argument('-i', '--input',   help='File query input', default=None)
+  parser.add_argument('-f', '--file',    help='Database file',    default=None)
+  parser.add_argument('-x', '--delete',  help='Paths to delete',  default=None)
+  parser.add_argument('-t', '--tags',    help='List tags',        default=False, action="store_true")
+  parser.add_argument('search', metavar='N', type=str, nargs='+', help='Search term')
+
+  args = parser.parse_args()
+
+  if not args.file:
+     args.file = "database.tag"
+
+  db = hashtag.parsedb(args.file);
+  res = None;
+
+  if args.input: 
+     queries = hashtag.parsedb(args.input);
+
+  elif args.delete:
+       paths = hashtag.file2rows(args.delete);
+       paths = [p[0] for p in paths];
+       hashtag.delete_entries(paths);
+
+  elif args.tags:
+       ts = hashtag.tagslist(db);
+       for t in ts:
+           print t;
+
+  else:
+    if args.query:      query = args.query;
+    elif args.search:   query = " ".join(args.search);
+    print query;
+    tokens = hashtag.tokenize(query);
+    tree = hashtag.parsetree(tokens);
+    res = hashtag.searchtree(db, tree);
+
+  if res:
+     for r in res:
+         print r

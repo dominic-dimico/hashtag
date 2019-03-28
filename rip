@@ -1,105 +1,47 @@
 #!/usr/bin/python
 
-# Use YT search API to find music, then rip off with downloader
-# Use ffmpeg to convert to mp3
-# Use mp3_tagger to do id3v2 tagging
-# Who knows, maybe we can play it and rate it
-
-from __future__ import unicode_literals
-
-import youtube_dl
 import argparse
+import hashtag
+import youtube_rip
 
 from pprint import pprint as pp
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-
-DEVELOPER_KEY = 'AIzaSyCJPtbjLJFu6BusCK12-30LAiDn-FQtZXs'
-YOUTUBE_API_SERVICE_NAME = 'youtube'
-YOUTUBE_API_VERSION = 'v3'
-
-
-################################################################################
-# Search YouTube by keyword for videos
-################################################################################
-def youtube_search(options):
-
-    youtube = build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION,
-      developerKey=DEVELOPER_KEY)
-
-    search_response = youtube.search().list(
-        q=options.query,
-        part='id,snippet',
-        maxResults=options.max_results
-    ).execute()
-
-    videos = []
-    playlists = []
-
-    for search_result in search_response.get('items', []):
-        if search_result['id']['kind'] == 'youtube#video':
-          videos.append(
-            (
-             search_result['id']['videoId'],
-             search_result['snippet']['title']
-            )
-          )
-        elif search_result['id']['kind'] == 'youtube#playlist':
-          playlists.append(
-            (
-             search_result['id']['playlistId'],
-             search_result['snippet']['title']
-            )
-          )
-
-    return videos;
 
 
 if __name__ == '__main__':
 
   parser = argparse.ArgumentParser()
-  parser.add_argument('-q', '--query',       help='Search term',       default='hypnotized dude')
-  parser.add_argument('-m', '--music',       help='Music extraction',  default=False, action="store_true");
+  parser.add_argument('-q', '--query',       help='Search term',       default=None)
   parser.add_argument('-n', '--max-results', help='Number of results', default=25)
-  parser.add_argument('-d', '--download',    help='Download',          default=False, action="store_true");
+  parser.add_argument('-m', '--music',       help='Download music',    default=None, action="store_true")
+  parser.add_argument('-i', '--input',       help='Input file',        default=None)
+  #parser.add_argument('-f', '--file',        help='Database file',     default=None)
   args = parser.parse_args()
-  pp(args);
 
-  try:
-    videos = youtube_search(args)
-    pp(videos);
-  except HttpError, e:
-    print 'An HTTP error %d occurred:\n%s' % (e.resp.status, e.content)
+  if args.music:
 
-  if args.download:
+     if args.query:
+        songrows = youtube_rip.songs2rows([args.query]);
+        hashtag.append_entries(songrows);
 
-     with open("/home/dominic/vid/included.txt") as ytidsfile:
-          ytids = ytidsfile.read().splitlines();
+     elif args.input:
+        inputfile = open(args.input)
+        songs = inputfile.readlines();
+        songs = [l.strip() for l in rows];
+        songrows = youtube_rip.songs2rows(songs);
 
-     with open("/home/dominic/vid/excluded.txt") as ytidsfile:
-          ytids = ytids + ytidsfile.read().splitlines();
-     
-     urls = []
-     for (id, title) in videos:
-         if id not in ytids:
-            urls.append( 'https://www.youtube.com/watch?v=%s' % id );
+     musicdb = hashtag.parserows(songrows);
+     youtube_rip.download_music(musicdb);
 
-     ydl_opts = {
-       "outtmpl": "%(id)s.%(ext)s",
-       "continue_dl": True,
-       "ratelimit": "250k",
-       "ignoreerrors": True,
-#      "mark_watched": True,
-#      "username": "the.dominicator",
-#      "no_check_certificate": True,
-#      "sleep_interval": 5,
-#      "max_sleep_interval": 10,
-       "nooverwrites": True,
-       "extractaudio": args.music,
-       "recodevideo": True,
-       "audioformat": "mp3",
-       "audioquality": "0",
-     }
-     with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-          ydl.download( urls );
+  else:
 
+     if args.query:
+
+        videos = youtube_rip.youtube_search(
+          args.query,
+          args.max_results
+        );
+        videos = youtube_rip.filter_downloaded(videos);
+        videos = youtube_rip.vim_select(videos);
+        youtube_rip.download_vids(
+          youtube_rip.video_urls(videos)
+        )

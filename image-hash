@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+
 from PIL import Image
 
 import imagehash
@@ -10,21 +11,31 @@ import bisect
 global hashes;
 filter = False;
 
+
+
+################################################################################
+# Locate the leftmost value exactly equal to x
+################################################################################
 def index(x):
-    'Locate the leftmost value exactly equal to x'
-    #print(hashes);
-    #input("Enter to continue...");
     i = bisect.bisect_left(hashes, x)
     if i != len(hashes) and hashes[i] == x:
         return i
     else: return -1;
 
 
+
+################################################################################
+# Get base directory
+################################################################################
 basedir = "."
 if len(sys.argv) > 1:
    basedir = sys.argv[1];
 
 
+
+################################################################################
+# No longer any need for filtration
+################################################################################
 if len(sys.argv) > 2:
    if sys.argv[2] == "filter":
       filter = True;
@@ -33,6 +44,9 @@ if len(sys.argv) > 2:
 
 
 
+################################################################################
+# Walk along all directories, hash each image and rename it after hash
+################################################################################
 for (root, subdirs, files) in os.walk(basedir):
 
     for filename in files:
@@ -42,7 +56,7 @@ for (root, subdirs, files) in os.walk(basedir):
         try:
             base, ext = os.path.splitext(src);
             image = Image.open(src)
-            dst = imagehash.average_hash(image);
+            dst = imagehash.average_hash(image, hash_size=16);
         except:
             print("%s not an image" % src);
             continue;
