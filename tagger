@@ -1,0 +1,173 @@
+#!/usr/bin/python
+
+import Tkinter as tk
+from PIL import Image, ImageTk
+import time
+import traceback
+import sys
+import glob
+import hashtag
+import shutil
+
+
+# ToDo:
+  # Resolve path from regex
+  # Put hashtags into database
+
+
+class ImageViewer():
+
+
+    def openfirst(self,path):
+        print self.cv.winfo_width(), self.cv.winfo_height()
+        if self.cv.winfo_width() <= 1 or self.cv.winfo_height() <= 1:
+           time.sleep(.5);
+           self.root.after(500, self.openfirst(path));
+        else: 
+           self.openimage(path);
+           self.refresh(event=None, dx=0);
+
+
+    def openimage(self,path):
+
+        self.W = self.cv.winfo_width();
+        self.H = self.cv.winfo_height();
+        img = Image.open(path);
+        (w, h) = img.size;
+        arimg = w/float(h);
+        xoff = yoff = 0;
+        if arimg > self.armon:
+           scale = self.W/float(w);
+        else:                 
+           scale = self.H/float(h);
+        img = img.resize((int(w*scale), int(h*scale)));
+        xoff = (self.W - w*scale) / 2.0;
+        yoff = (self.H - h*scale) / 2.0;
+        self.photo = ImageTk.PhotoImage(img);
+        self.image_on_canvas = self.cv.create_image(xoff, yoff, anchor='nw', image=self.photo);
+        self.cv.itemconfig(self.image_on_canvas, image=self.photo);
+
+        index = self.pathindex(path);
+        if index > -1:
+           if "tags" in self.db[index]:
+              tags = "\n".join(self.db[index]["tags"])
+              self.lv.set(tags);
+           else: self.lv.set("");
+        else: self.lv.set("");
+
+
+    def pathindex(self, path):
+        for index in range(len(self.db)):
+            if self.db[index]["path"] == path:
+               return index;
+        return -1;
+
+
+    def tagphoto(self,event):
+        #self.e.focus_set();
+        s = self.e.get();
+        if len(s) > 0:
+          self.e.delete(0, tk.END);
+          row = self.paths[self.i.get()] + ";" + s;
+          ref = hashtag.parserow(row.split(";"));
+          index = self.pathindex(self.paths[self.i.get()]);
+          if index > 0:
+              dbref = self.db[index];
+              newref = hashtag.mergerows(dbref, ref); 
+              self.db[index] = newref;
+          else: self.db.append(ref);
+        #print row;
+        self.refresh(event, 1);
+        self.e.focus_set();
+        return s;
+
+
+    def writeout(self, event):
+        try: 
+          hashtag.rows2file(self.db, filename="database.tag");
+        except Exception as e:
+          print e;
+        sys.exit(1);
+
+
+    def slideshow(self, event):
+        if self.slide == True:
+           self.slide = False;
+           self.root.update();
+           self.root.update_idletasks();
+        else:
+           self.slide = False;
+        if self.slides == True:
+           self.root.after(1000, self.refresh(event, 1));
+
+
+    def refresh(self, event, dx):
+        self.i.set(self.i.get() + dx); 
+        self.openimage(self.paths[self.i.get()]);
+
+
+    def focus_next_widget(self, event):
+        print "focus"
+        event.widget.tk_focusNext().focus()
+        return("break");
+
+
+    def __init__(self):
+        
+        self.W = 1360;
+        self.H = 768;
+        self.armon = self.W/float(self.H);
+
+        self.db = hashtag.parsedb("database.tag");
+        self.paths = sys.argv[1:];
+
+        self.root = tk.Tk();
+        self.root.attributes("-fullscreen");
+
+        self.e = tk.Entry(
+          self.root, 
+          bg="black", 
+          fg="white", 
+          width="40"
+        )
+        self.e.pack();
+
+        self.cv = tk.Canvas(
+          self.root, 
+          width=self.W, 
+          height=self.H, 
+          background="black"
+        );
+        self.cv.pack(expand="YES", fill="both", side="top");
+        self.i = tk.IntVar();
+
+        self.lv = tk.StringVar("");
+        self.label = tk.Label(
+          self.cv,
+          padx = 10, 
+          background="black",
+          fg="white",
+          width=20,
+          textvariable=self.lv,
+          justify="left"
+        )
+        self.label.pack(anchor="nw");
+
+        self.e.bind('<Return>', lambda event: self.tagphoto(event));
+        self.e.bind('<Tab>', lambda event: self.cv.focus_set());
+        self.cv.bind('<Tab>', lambda event: self.e.focus_set());
+        self.cv.bind('n', lambda event: self.refresh(event,  1));
+        self.cv.bind('p', lambda event: self.refresh(event, -1));
+        self.cv.bind('r', lambda event: self.refresh(event, 0));
+        self.cv.bind('s', lambda event: self.slideshow(event));
+        self.cv.bind('q', lambda event: self.writeout(event));
+
+        if self.paths:
+          self.openimage(self.paths[0]);
+
+        self.root.geometry("{0}x{1}+0+0".format(
+            self.root.winfo_screenwidth(), self.root.winfo_screenheight()))
+
+        self.root.mainloop();
+
+x = ImageViewer();
