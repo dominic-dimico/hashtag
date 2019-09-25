@@ -18,7 +18,7 @@ if __name__ == '__main__':
   parser.add_argument('-f', '--file',    help='Database file',    default=None)
   parser.add_argument('-x', '--delete',  help='Paths to delete',  default=None)
   parser.add_argument('-t', '--tags',    help='List tags',        default=False, action="store_true")
-  parser.add_argument('search', metavar='N', type=str, nargs='+', help='Search term')
+  parser.add_argument('search', metavar='query', type=str, nargs='*', help='Search term')
 
   args = parser.parse_args()
 
@@ -44,9 +44,9 @@ if __name__ == '__main__':
   else:
     if args.query:      query = args.query;
     elif args.search:   query = " ".join(args.search);
-    print query;
     tokens = hashtag.tokenize(query);
     tree = hashtag.parsetree(tokens);
+    #print tree
     res = hashtag.searchtree(db, tree);
 
   if res:

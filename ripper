@@ -26,11 +26,12 @@ if __name__ == '__main__':
      elif args.input:
         inputfile = open(args.input)
         songs = inputfile.readlines();
-        songs = [l.strip() for l in rows];
+        songs = [l.strip() for l in songs];
         songrows = youtube_rip.songs2rows(songs);
 
      musicdb = hashtag.parserows(songrows);
      youtube_rip.download_music(musicdb);
+     hashtag.append_entries(songrows);
 
   else:
 

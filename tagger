@@ -40,6 +40,8 @@ class ImageViewer():
            scale = self.W/float(w);
         else:                 
            scale = self.H/float(h);
+        #w = w * scale;
+        #h = h * scale;
         img = img.resize((int(w*scale), int(h*scale)));
         xoff = (self.W - w*scale) / 2.0;
         yoff = (self.H - h*scale) / 2.0;
@@ -54,6 +56,45 @@ class ImageViewer():
               self.lv.set(tags);
            else: self.lv.set("");
         else: self.lv.set("");
+
+        return;
+
+        if path.endswith("gif"):
+
+           self.frames = []
+           i = 0
+           img = Image.open(path);
+           try:
+               while True:
+                   photoframe = ImageTk.PhotoImage(img.resize((int(w*scale), int(h*scale))).copy());
+                   self.frames.append(photoframe)
+                   i = i + 1
+                   img.seek(i)
+           except EOFError: 
+                  pass
+           if len(self.frames) < 2: 
+              print len(self.frames);
+              return;
+           try: self.delay = img.info['duration'];
+           except: self.delay = 100;
+
+           frame = 1;
+
+           while True:
+
+             try:
+               self.cv.itemconfig(self.image_on_canvas, image=self.frames[frame]);
+               self.cv.after(self.delay);
+               self.cv.update();
+               self.cv.update_idletasks();
+               frame = frame + 1;
+               if frame == len(self.frames) - 1:
+                  frame = 1;
+
+             except Exception as e:
+               print traceback.format_exc();
+               break;
+
 
 
     def pathindex(self, path):
@@ -163,7 +204,9 @@ class ImageViewer():
         self.cv.bind('q', lambda event: self.writeout(event));
 
         if self.paths:
-          self.openimage(self.paths[0]);
+          #self.openimage(self.paths[0]);
+          pass
+
 
         self.root.geometry("{0}x{1}+0+0".format(
             self.root.winfo_screenwidth(), self.root.winfo_screenheight()))

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#/usr/bin/python
 
 import csv
 import sys
@@ -71,12 +71,33 @@ def file2rows(filename):
 ################################################################################
 def rows2file(rows, filename="database.tag"):
     dbfile = open(filename, "w+");
-    writer = csv.writer(dbfile, delimiter=';', quotechar='"')
+    rows = sorted(rows, key = lambda x: x['path']);
+    for i in range(len(rows)):
+        ts  = rows[i]['tags'];
+        nts = []
+        [nts.append(x) for x in ts if x not in nts]
+        rows[i]['tags'] = sorted(nts);
     for row in rows:
-        writer.writerow(row);
+        dbfile.write(row2str(row)+"\n");
     dbfile.close();
 
 
+
+################################################################################
+# Convert row back to string
+################################################################################
+def row2str(row):
+    if "path" in row: 
+       res = row["path"]
+    if "tags" in row: 
+       res = res + ";" + ";".join(row["tags"]);
+    for key in row.keys():
+        if key=="path" or key=="tags":
+           pass
+        else:
+           res = res + ";" + key + "=" + row[key];
+    return res;
+           
 
 ################################################################################
 # Convert rows in list form to list of data structures
@@ -87,6 +108,24 @@ def parserows(rows):
         ref = parserow(row);
         if ref: reflist.append(ref);
     return reflist;
+
+
+
+################################################################################
+# Combine tags from Row A and Row B, with B overwriting A where necessary
+################################################################################
+def mergerows(rowa, rowb):
+    rowc = dict(rowa);
+    for key in rowb.keys():
+        if key == "path":
+           pass;
+        elif key == "tags":
+           for tag in rowb["tags"]:
+               if tag not in rowc["tags"]:
+                  rowc["tags"].append(tag);
+        else:
+           rowc[key] = rowb[key];
+    return rowc;
 
 
 
@@ -103,7 +142,7 @@ def parsedb(filename):
 ################################################################################
 def tagslist(database):
     tags = [];
-    for d in db:
+    for d in database:
         if "tags" in d:
            tags = tags + d["tags"]
     return sorted(unique(tags));
@@ -123,7 +162,7 @@ def tokenize(s):
              j = i;
           elif s[i] != " ":
              j = i;
-             while i<len(s) and (s[i] != " "):
+             while i<len(s) and (s[i] != " " and s[i] != ")"):
                    i = i + 1;
              tokens.append(s[j:i])
              i = i - 1;
@@ -284,47 +323,3 @@ def append_entries(rows, filename="database.tag"):
     dbfile.close();
 
 
-
-################################################################################
-# Main method
-################################################################################
-if __name__ == '__main__':
-
-  parser = argparse.ArgumentParser()
-  parser.add_argument('-q', '--query',   help='Database query',   default=None)
-  parser.add_argument('-i', '--input',   help='File query input', default=None)
-  parser.add_argument('-f', '--file',    help='Database file',    default=None)
-  parser.add_argument('-x', '--delete',  help='Paths to delete',  default=None)
-  parser.add_argument('-t', '--tags',    help='List tags',        default=False, action="store_true")
-  args = parser.parse_args()
-
-  if not args.file:
-     args.file = "database.tag"
-
-  db = parsedb(args.file);
-  res = None;
-
-  if args.input: 
-     queries = parsedb(args.input);
-
-  elif args.delete:
-       paths = file2rows(args.delete);
-       paths = [p[0] for p in paths];
-       delete_entries(paths);
-
-  elif args.tags:
-       ts = tagslist(db);
-       for t in ts:
-           print t;
-
-  elif args.query: 
-       query = args.query;
-       tokens = tokenize(query);
-       tree = parsetree(tokens);
-       res = searchtree(db, tree);
-
-  else: query = [ {'tags': ['euphoric'] } ]
-
-  if res:
-     for r in res:
-         print r

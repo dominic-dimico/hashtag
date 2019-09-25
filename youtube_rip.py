@@ -8,6 +8,7 @@ import youtube_dl
 import toolbelt.editors
 import os, sys, re
 import hashtag
+import code
 
 from pprint import pprint as pp
 from googleapiclient.discovery import build
@@ -26,7 +27,7 @@ sys.setdefaultencoding('utf-8')
 ################################################################################
 # Need developer keys
 ################################################################################
-DEVELOPER_KEY = 'AIzaSyCJPtbjLJFu6BusCK12-30LAiDn-FQtZXs'
+DEVELOPER_KEY = 'AIzaSyDGKbtyNl5M788RzRXhoqNJiKvZDJl0Pe8'
 YOUTUBE_API_SERVICE_NAME = 'youtube'
 YOUTUBE_API_VERSION = 'v3'
 
@@ -39,6 +40,8 @@ def youtube_search(query, num_results):
 
     youtube = build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION,
       developerKey=DEVELOPER_KEY)
+
+    #code.interact(local=locals());
 
     search_response = youtube.search().list(
         q=query,
@@ -84,13 +87,18 @@ def download_vids(urls):
 def songs2rows(songs):
     songrows = [];
     for song in songs:
-        songpart = song.split("/");
+        parts = song.split(";");
+        path  = parts[0];
+        tags  = [];
+        if len(parts)>1: 
+           tags = parts[1:];
+        songpart = path.split("/");
         songrow = [
-          song + ".mp3",
-          "genre="+songpart[0],
-          "artist="+songpart[1],
-          "title="+songpart[2],
-        ]
+          path + ".mp3",
+          "genre="  + songpart[0],
+          "artist=" + songpart[1],
+          "title="  + songpart[2],
+        ] + tags;
         songrows.append(songrow);
     return songrows;
 
