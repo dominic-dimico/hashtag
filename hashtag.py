@@ -60,8 +60,12 @@ def parserow(row):
 # Make file into normal rows
 ################################################################################
 def file2rows(filename):
-    dbfile = open(filename);
-    rows = csv.reader(dbfile, delimiter=';', quotechar='"')
+    try:
+        dbfile = open(filename);
+        rows = csv.reader(dbfile, delimiter=';', quotechar='"')
+    except Exception as e:
+        print(e);
+        sys.exit(1);
     return [r for r in rows];
     dbfile.close();
 
@@ -71,15 +75,26 @@ def file2rows(filename):
 # Put rows back into database file
 ################################################################################
 def rows2file(rows, filename="database.tag"):
-    dbfile = open(filename, "w+");
+    try:
+      dbfile = open(filename, "w+");
+    except Exception as e:
+      print(e);
+      sys.exit(1);
     rows = sorted(rows, key = lambda x: x['path']);
-    for i in range(len(rows)):
-        ts  = rows[i]['tags'];
-        nts = []
-        [nts.append(x) for x in ts if x not in nts]
-        rows[i]['tags'] = sorted(nts);
-    for row in rows:
-        dbfile.write(row2str(row)+"\n");
+    if len(rows)>1:
+        for i in range(len(rows)):
+            j = (i + 1) % len(rows);
+            if rows[i]['path'] == rows[j]['path']: 
+               mergerows(rows[j], rows[i]);
+            ts  = rows[i]['tags'];
+            nts = []
+            [nts.append(x) for x in ts if x not in nts]
+            rows[i]['tags'] = sorted(nts);
+        for i in range(len(rows)):
+            j = (i + 1) % len(rows);
+            if rows[i]['path'] == rows[j]['path']: 
+               pass;
+            else: dbfile.write(row2str(rows[i])+"\n");
     dbfile.close();
 
 
@@ -96,7 +111,7 @@ def row2str(row):
         if key=="path" or key=="tags":
            pass
         else:
-           print key, row[key];
+           #print(key, row[key]);
            res = res + ";" + key + "=" + ",".join(row[key]);
     return res;
            
@@ -123,7 +138,11 @@ def mergerows(rowa, rowb):
            pass;
         elif key == "tags":
            for tag in rowb["tags"]:
-               if tag not in rowc["tags"]:
+               if tag[0] == '-':
+                  tag = tag[1:];
+                  if tag in rowc["tags"]:
+                     rowc["tags"].remove(tag);
+               elif tag not in rowc["tags"]:
                   rowc["tags"].append(tag);
         else:
            rowc[key] = rowb[key];
@@ -159,12 +178,12 @@ def tokenize(s):
     j = 0;
     tokens = [];
     while i < len(s):
-          if s[i] == '(' or s[i] == ')' or s[i] == ',':
+          if s[i] == '(' or s[i] == ')' or s[i] == ',' or s[i] == '=' or s[i] == '<' or s[i] == '>':
              tokens.append(s[i]);
              j = i;
           elif s[i] != " ":
              j = i;
-             while i<len(s) and (s[i] != " " and s[i] != ")" and s[i] != ','):
+             while i<len(s) and (s[i] != " " and s[i] != ")" and s[i] != ',' and s[i] != '=' and s[i] != '>' and s[i] != '<'):
                    i = i + 1;
              tokens.append(s[j:i])
              i = i - 1;
@@ -179,44 +198,77 @@ def tokenize(s):
 # TODO: handle more tokens
 #       comma (','):       denotes sequence, similar to 'or'
 #       shuffler ('shuf'): denotes internal shuffle
-#       numbers (e.g. 3):  denotes number of random entries
+#       numbers (e.g. 3x): denotes number of random entries
 ################################################################################
 def parsetree(tokens):
 
+    #print(tokens);
+
     if   len(tokens) == 1: return tokens[0];
-    elif len(tokens) == 0: return None;
+    elif len(tokens) == 0: return tokens;
 
     i = 0;
     j = 0;
     k = len(tokens)-1; 
-    #print tokens;
 
     while j < len(tokens):
 
+          #print("i: %d j: %d k: %d   %s" % (i, j, k, tokens));
 
           # Parentheses: extract expr
           if tokens[j] == '(':
-             while k > 0:
-                   if tokens[k] == ')':
-                      expr = tokens[j+1:k];
-                      return parsetree(expr);
-                   k = k - 1
-
-
+             m = j + 1;
+             c = 1;
+             while m < k:
+                   if   tokens[m] == '(': c = c + 1;
+                   elif tokens[m] == ')': c = c - 1;
+                   if c == 0: break;
+                   m = m + 1;
+             return [ parsetree(tokens[j+1:m]) ] + parsetree(tokens[m+1:]) ;
+             
           elif tokens[j] == "or":
-             return [
-               parsetree(tokens[i:j]),
-               "or",
-               parsetree(tokens[j+1:k+1])
-             ];
+             if j>i:
+                 return [
+                   parsetree(tokens[i:j]),
+                   "or",
+                   parsetree(tokens[j+1:k+1])
+                 ];
+             else:
+                 return [ "or" , parsetree(tokens[j+1:k+1]) ];
 
 
           elif tokens[j] == "and":
-             return [
-               parsetree(tokens[i:j]),
-               "and",
-               parsetree(tokens[j+1:k+1])
-             ];
+             if j>i:
+                 return [
+                   parsetree(tokens[i:j]),
+                   "and",
+                   parsetree(tokens[j+1:k+1])
+                 ];
+             else:
+                 return [ "and" ,  parsetree(tokens[j+1:k+1]) ];
+
+
+#          elif tokens[j] == "=":
+#             return [
+#               parsetree(tokens[i:j]),
+#               ">",
+#               parsetree(tokens[j+1:j+2])
+#             ];
+#             i = j+1;
+#
+#          elif tokens[j] == ">":
+#             return [ [
+#               parsetree(tokens[i:j]),
+#               ">",
+#               parsetree(tokens[j+1:j+2])
+#             ],  parsetree(tokens[j+2:k+1])]; 
+#
+#          elif tokens[j] == "<":
+#             return [
+#               parsetree(tokens[i:j]),
+#               "<",
+#               parsetree(tokens[j+1:j+2])
+#             ];
 
 
           elif tokens[j] == "not":
@@ -235,22 +287,22 @@ def parsetree(tokens):
                ];
 
 
-          elif tokens[j].isdigit():
-               formerk = k;
-               while k > 0:
-                     if tokens[k] == ',':
-                        #expr = tokens[j+1:k];
-                        return [
-                                parsetree(tokens[j:k]),
-                                tokens[k],
-                                parsetree(tokens[k+1:formerk+1])
-                        ];
-                     k = k - 1
-               return [
-                      None,
-                      tokens[j],
-                      parsetree(tokens[j+1:formerk+1])
-               ];
+#          elif tokens[j].isdigit():
+#               formerk = k;
+#               while k > 0:
+#                     if tokens[k] == ',':
+#                        #expr = tokens[j+1:k];
+#                        return [
+#                                parsetree(tokens[j:k]),
+#                                tokens[k],
+#                                parsetree(tokens[k+1:formerk+1])
+#                        ];
+#                     k = k - 1
+#               return [
+#                      None,
+#                      tokens[j],
+#                      parsetree(tokens[j+1:formerk+1])
+#               ];
 
 
           elif tokens[j] == ",":
@@ -260,8 +312,11 @@ def parsetree(tokens):
                  parsetree(tokens[j+1:k+1])
                ];
 
+          #else: return tokens[j];
+
           j = j + 1;
-             
+
+    return tokens;         
 
 
 ################################################################################
@@ -289,39 +344,70 @@ def difference(a, b):
 ################################################################################
 def searchtag(db, query):
 
+
     res = [];
-    rels = ['>', '<', '=']
-    for rel in rels:
-        if rel in query:
-           eq = query.split(rel);
 
-    eq = query.split('=');
-
-    if len(eq) > 1:
-       field = eq[0];
-       value = eq[1];
-    else: 
+    relop = "x"
+    #print("searchtag: "+str(query));
+    if isinstance(query, str):
        field = "tags";
-       value = eq[0];
+       value = query;
+    else: 
+       field = query[0];
+       relop = query[1];
+       value = query[2];
 
-    if rel=="=" or len(eq)<2:
+
+    if field == "ntags":
+        ntags = 0;
+        for d in db:
+            dkeys = d.keys();
+            if "tags" in dkeys:
+               ntags = len(d["tags"]);
+            if relop == "=":
+               if int(value) == ntags:
+                  res.append(d["path"]);
+            if relop == ">":
+               if ntags > int(value):
+                  res.append(d["path"]);
+            if relop == "<":
+               if ntags < int(value):
+                  res.append(d["path"]);
+
+
+    elif relop=="x":
         for d in db:
             dkeys = d.keys();
             if field in dkeys:
                if value in d[field]:
                   res.append(d["path"]);
-    elif rel==">":
+
+    elif relop=="=":
+        for d in db:
+            dkeys = d.keys();
+            if value == '?':
+              if field not in dkeys:
+                 res.append(d["path"]);
+            elif field in dkeys:
+              if value in d[field]:
+                 res.append(d["path"]);
+
+
+    elif relop==">":
          for d in db:
              dkeys = d.keys();
              if field in dkeys:
-                if int(d[field]) > int(value):
-                   res.append(d["path"]);
-    elif rel=="<":
+                for el in d[field]:
+                    if int(el) > int(value):
+                       res.append(d["path"]);
+
+    elif relop=="<":
          for d in db:
              dkeys = d.keys();
              if field in dkeys:
-                if int(d[field]) < int(value):
-                   res.append(d["path"]);
+                for el in d[field]:
+                    if int(el) < int(value):
+                       res.append(d["path"]);
 
     return res;
 
@@ -332,46 +418,59 @@ def searchtag(db, query):
 ################################################################################
 def searchtree(db, tree):
 
+
+    #print("searchtree: "+str(tree));
+
     if type(tree) is list:
 
-       if tree[1] == "and":
-          return intersect( 
-            searchtree(db, tree[0]),
-            searchtree(db, tree[2])
-          )
+       if len(tree)>2:
 
-       elif tree[1] == "or":
-          return union( 
-            searchtree(db, tree[0]),
-            searchtree(db, tree[2])
-          )
+           if tree[1] == "and":
+              return intersect( 
+                searchtree(db, tree[0]),
+                searchtree(db, tree[2])
+              )
 
-       elif tree[1] == "not":
-          paths = [d['path'] for d in db]
-          return difference(
-            paths,
-            searchtree(db, tree[2])
-          )
-       
-       elif tree[1] == "shuf":
-          t = searchtree(db, tree[2]);
-          random.shuffle(t);
-          return t;
+           elif tree[1] == "or":
+              return union( 
+                searchtree(db, tree[0]),
+                searchtree(db, tree[2])
+              )
 
-
-       elif tree[1].isdigit():
-          n = int(tree[1]);
-          t = searchtree(db, tree[2]);
-          random.shuffle(t);
-          return t[0:n]
+           elif tree[1] == "not":
+              paths = [d['path'] for d in db]
+              return difference(
+                paths,
+                searchtree(db, tree[2])
+              )
+           
+           elif tree[1] == "shuf":
+              t = searchtree(db, tree[2]);
+              random.shuffle(t);
+              return t;
 
 
-       elif tree[1] == ",":
-          return concat( 
-            searchtree(db, tree[0]),
-            searchtree(db, tree[2])
-          )
-          
+           elif tree[1].isdigit():
+              n = int(tree[1]);
+              t = searchtree(db, tree[2]);
+              random.shuffle(t);
+              return t[0:n]
+
+
+           elif tree[1] == ",":
+              return concat( 
+                searchtree(db, tree[0]),
+                searchtree(db, tree[2])
+              )
+
+           elif tree[1] == "=" or tree[1] == ">" or tree[1] == "<":
+              return searchtag(db, tree);
+
+           else:
+              return searchtag(db, tree);
+
+       else:
+           return searchtag(db, tree[0]);
 
     else: 
        return searchtag(db, tree);
@@ -388,7 +487,7 @@ def delete_entries(paths, filename="database.tag"):
         rowpath = row[0];
         if rowpath not in paths:
            newrows.append(row);
-        else: print row;
+        else: print(row);
     rows2file(newrows, filename);
 
 

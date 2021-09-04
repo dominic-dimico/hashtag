@@ -1,34 +1,22 @@
 #!/usr/bin/python
 
-import Tkinter as tk
+import tkinter as tk
+import tkinter.font as tkfont
 from PIL import Image, ImageTk
 import time
 import traceback
+import random
 import sys
+import os
 import glob
 import hashtag
 import shutil
 
 
-# ToDo:
-  # Resolve path from regex
-  # Put hashtags into database
-
-
 class ImageViewer():
 
 
-    def openfirst(self,path):
-        print self.cv.winfo_width(), self.cv.winfo_height()
-        if self.cv.winfo_width() <= 1 or self.cv.winfo_height() <= 1:
-           time.sleep(.5);
-           self.root.after(500, self.openfirst(path));
-        else: 
-           self.openimage(path);
-           self.refresh(event=None, dx=0);
-
-
-    def openimage(self,path):
+    def openimage(self, path):
 
         self.W = self.cv.winfo_width();
         self.H = self.cv.winfo_height();
@@ -37,46 +25,62 @@ class ImageViewer():
         arimg = w/float(h);
         xoff = yoff = 0;
         if arimg > self.armon:
-           scale = self.W/float(w);
+           scale = self.W/float(w)*self.zoom;
         else:                 
-           scale = self.H/float(h);
+           scale = self.H/float(h)*self.zoom;
+        self.scale = scale;
         #w = w * scale;
         #h = h * scale;
-        img = img.resize((int(w*scale), int(h*scale)));
-        xoff = (self.W - w*scale) / 2.0;
-        yoff = (self.H - h*scale) / 2.0;
+        try:
+          img = img.resize((int(w*scale), int(h*scale)));
+        except Exception as e:
+          #print (self.W, self.H), img.size;
+          #print(e);
+          pass
+        xoff = (self.W - w*scale) / 2.0 + self.xpan;
+        yoff = (self.H - h*scale) / 2.0 + self.ypan;
         self.photo = ImageTk.PhotoImage(img);
         self.image_on_canvas = self.cv.create_image(xoff, yoff, anchor='nw', image=self.photo);
         self.cv.itemconfig(self.image_on_canvas, image=self.photo);
 
         index = self.pathindex(path);
         if index > -1:
-           if "tags" in self.db[index]:
-              tags = "\n".join(self.db[index]["tags"])
-              self.lv.set(tags);
-           else: self.lv.set("");
+           tags = "";
+           for key in self.db[index].keys():
+               val = self.db[index][key];
+               if key=="tags":   tags += "\n".join(val) + "\n";
+               elif key=="path": pass;
+               else:             tags += "\n" + key + ": " + ','.join(val);
+           counter = str(self.i.get()+1) + "/" + str(self.n) + "\n\n"
+           self.lv.set(counter+tags);
         else: self.lv.set("");
 
         return;
+
+
+    def animate(self, event):
+
+        path = self.paths[self.i.get()];
 
         if path.endswith("gif"):
 
            self.frames = []
            i = 0
            img = Image.open(path);
+           (w, h) = img.size;
            try:
                while True:
-                   photoframe = ImageTk.PhotoImage(img.resize((int(w*scale), int(h*scale))).copy());
+                   photoframe = ImageTk.PhotoImage(img.resize((int(w*self.scale), int(h*self.scale))).copy());
                    self.frames.append(photoframe)
                    i = i + 1
                    img.seek(i)
            except EOFError: 
                   pass
            if len(self.frames) < 2: 
-              print len(self.frames);
+              print(len(self.frames));
               return;
            try: self.delay = img.info['duration'];
-           except: self.delay = 100;
+           except: self.delay = 50;
 
            frame = 1;
 
@@ -89,10 +93,10 @@ class ImageViewer():
                self.cv.update_idletasks();
                frame = frame + 1;
                if frame == len(self.frames) - 1:
-                  frame = 1;
+                  return;
 
              except Exception as e:
-               print traceback.format_exc();
+               print(traceback.format_exc());
                break;
 
 
@@ -104,30 +108,71 @@ class ImageViewer():
         return -1;
 
 
-    def tagphoto(self,event):
-        #self.e.focus_set();
+    def docommand(self, event):
+       s = self.e.get();
+       cmds = s.split(" ");
+       if cmds[0] == "ht":
+          query = " ".join(cmds[1:]);
+          tokens = hashtag.tokenize(query);
+          tree = hashtag.parsetree(tokens);
+          res = hashtag.searchtree(self.db, tree);
+          self.paths=res;
+          self.i.set(0);
+          self.n = len(self.paths);
+          self.refresh(event, 0);
+          self.e.delete(0, tk.END);
+          self.cv.focus_set();
+       elif cmds[0] == "rate":
+          self.key = cmds[1];
+          self.e.delete(0, tk.END);
+          self.cv.focus_set();
+       elif cmds[0] == "slow":
+          self.speed = 0;
+          self.e.delete(0, tk.END);
+          self.cv.focus_set();
+       elif cmds[0] == "delete":
+          self.e.delete(0, tk.END);
+          os.remove(self.paths[self.i.get()]);
+          dbindex = self.pathindex(self.paths[self.i.get()]);
+          self.db.pop(dbindex);
+          self.n = len(self.paths);
+          self.refresh(event, 1);
+          self.cv.focus_set();
+       else:
+          self.tagphoto(event);
+
+
+    def tagphoto(self, event):
         s = self.e.get();
         if len(s) > 0:
           self.e.delete(0, tk.END);
-          row = self.paths[self.i.get()] + ";" + s;
-          ref = hashtag.parserow(row.split(";"));
-          index = self.pathindex(self.paths[self.i.get()]);
-          if index > 0:
-              dbref = self.db[index];
-              newref = hashtag.mergerows(dbref, ref); 
-              self.db[index] = newref;
-          else: self.db.append(ref);
-        #print row;
+          self.tagwith(s);
         self.refresh(event, 1);
         self.e.focus_set();
         return s;
+
+
+    def tagwith(self, s):
+        row = self.paths[self.i.get()] + ";" + s;
+        ref = hashtag.parserow(row.split(";"));
+        index = self.pathindex(self.paths[self.i.get()]);
+        if index > 0:
+              dbref = self.db[index];
+              newref = hashtag.mergerows(dbref, ref); 
+              self.db[index] = newref;
+        else: self.db.append(ref);
+       
+
+    def rate(self, event, val):
+        self.tagwith("%s=%s" % (self.key, val));
+        self.refresh(event, self.speed);
 
 
     def writeout(self, event):
         try: 
           hashtag.rows2file(self.db, filename="database.tag");
         except Exception as e:
-          print e;
+          print(e);
         sys.exit(1);
 
 
@@ -137,20 +182,50 @@ class ImageViewer():
            self.root.update();
            self.root.update_idletasks();
         else:
-           self.slide = False;
-        if self.slides == True:
-           self.root.after(1000, self.refresh(event, 1));
+           self.slide = True;
+        if self.slide == True:
+           #while True:
+           #      self.root.after(1000, self.refresh(event, 1));
+           #      self.cv.update();
+           #      self.cv.update_idletasks();
+           pass
 
+    def redraw(self):
+        self.openimage(self.paths[self.i.get()]);
 
     def refresh(self, event, dx):
-        self.i.set(self.i.get() + dx); 
-        self.openimage(self.paths[self.i.get()]);
+        self.zoom = 1;
+        self.xpan = 0;
+        self.ypan = 0;
+        if self.i.get()+dx < len(self.paths) and self.i.get()+dx>-1:
+           self.i.set(self.i.get() + dx); 
+        self.redraw();
 
 
     def focus_next_widget(self, event):
-        print "focus"
+        print("focus")
         event.widget.tk_focusNext().focus()
         return("break");
+
+    def setzoom(self, event, zoom):
+        self.zoom += zoom;
+        self.redraw();
+
+    def setpan(self, event, d):
+        (dx, dy) = d;
+        self.xpan += dx;
+        self.ypan += dy;
+        self.redraw();
+
+    def shuffle(self, event):
+        random.shuffle(self.paths);
+        self.i.set(0);
+        self.refresh(event, 0);
+
+    def goto(self, event, n):
+        if n==0:     self.i.set(0);
+        elif n==-1:  self.i.set(self.n-1);
+        else:        self.refresh(event, n);
 
 
     def __init__(self):
@@ -158,9 +233,16 @@ class ImageViewer():
         self.W = 1360;
         self.H = 768;
         self.armon = self.W/float(self.H);
+        self.xpan = 0;
+        self.ypan = 0;
+        self.zoom = 1;
+        self.key = "rating";
+        self.slide = False;
+        self.speed = 1;
 
         self.db = hashtag.parsedb("database.tag");
         self.paths = sys.argv[1:];
+        self.n = len(self.paths);
 
         self.root = tk.Tk();
         self.root.attributes("-fullscreen");
@@ -169,7 +251,7 @@ class ImageViewer():
           self.root, 
           bg="black", 
           fg="white", 
-          width="40"
+          width="80"
         )
         self.e.pack();
 
@@ -186,31 +268,54 @@ class ImageViewer():
         self.label = tk.Label(
           self.cv,
           padx = 10, 
+          font = tkfont.Font(family="Helvetica", size=16),
           background="black",
           fg="white",
-          width=20,
+          width=10,
           textvariable=self.lv,
           justify="left"
         )
         self.label.pack(anchor="nw");
 
-        self.e.bind('<Return>', lambda event: self.tagphoto(event));
+        self.e.bind('<Return>', lambda event: self.docommand(event));
         self.e.bind('<Tab>', lambda event: self.cv.focus_set());
         self.cv.bind('<Tab>', lambda event: self.e.focus_set());
         self.cv.bind('n', lambda event: self.refresh(event,  1));
         self.cv.bind('p', lambda event: self.refresh(event, -1));
         self.cv.bind('r', lambda event: self.refresh(event, 0));
         self.cv.bind('s', lambda event: self.slideshow(event));
+        self.cv.bind('a', lambda event: self.animate(event));
+        self.cv.bind('S', lambda event: self.shuffle(event));
         self.cv.bind('q', lambda event: self.writeout(event));
 
-        if self.paths:
-          #self.openimage(self.paths[0]);
-          pass
+        self.cv.bind('g', lambda event: self.goto(event, 0));
+        self.cv.bind('G', lambda event: self.goto(event, -1));
+        self.cv.bind('}', lambda event: self.goto(event, 10));
+        self.cv.bind('{', lambda event: self.goto(event, -10));
 
+        self.cv.bind('+', lambda event: self.setzoom(event, .2));
+        self.cv.bind('-', lambda event: self.setzoom(event, -.1));
+
+        self.cv.bind('<Up>', lambda event: self.setpan(event,   (0, 50)  ));
+        self.cv.bind('<Down>', lambda event: self.setpan(event, (0, -50) ));
+        self.cv.bind('<Left>', lambda event: self.setpan(event, (50, 0) ));
+        self.cv.bind('<Right>', lambda event: self.setpan(event, (-50, 0) ));
+
+        self.cv.bind('1', lambda event: self.rate(event, 1));
+        self.cv.bind('2', lambda event: self.rate(event, 2));
+        self.cv.bind('3', lambda event: self.rate(event, 3));
+        self.cv.bind('4', lambda event: self.rate(event, 4));
+        self.cv.bind('5', lambda event: self.rate(event, 5));
+
+        self.cv.focus_set()
 
         self.root.geometry("{0}x{1}+0+0".format(
             self.root.winfo_screenwidth(), self.root.winfo_screenheight()))
 
+        if self.paths:
+           self.openimage(self.paths[0])
+
         self.root.mainloop();
+
 
 x = ImageViewer();

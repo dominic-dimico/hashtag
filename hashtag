@@ -29,7 +29,7 @@ if __name__ == '__main__':
   res = None;
 
   if args.input: 
-     queries = hashtag.parsedb(args.input);
+       queries = hashtag.parsedb(args.input);
 
   elif args.delete:
        paths = hashtag.file2rows(args.delete);
@@ -39,16 +39,17 @@ if __name__ == '__main__':
   elif args.tags:
        ts = hashtag.tagslist(db);
        for t in ts:
-           print t;
+           print(t);
 
   else:
     if args.query:      query = args.query;
     elif args.search:   query = " ".join(args.search);
     tokens = hashtag.tokenize(query);
     tree = hashtag.parsetree(tokens);
-    #print tree
+    #print("parsetree: "+str(tree));
     res = hashtag.searchtree(db, tree);
 
   if res:
      for r in res:
-         print r
+         print(r)
+         #pass
