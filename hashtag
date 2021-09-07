@@ -46,7 +46,6 @@ if __name__ == '__main__':
     elif args.search:   query = " ".join(args.search);
     tokens = hashtag.tokenize(query);
     tree = hashtag.parsetree(tokens);
-    #print("parsetree: "+str(tree));
     res = hashtag.searchtree(db, tree);
 
   if res:
