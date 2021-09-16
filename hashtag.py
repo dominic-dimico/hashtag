@@ -211,21 +211,27 @@ def parsetree(tokens):
     j = 0;
     k = len(tokens)-1; 
 
+    l = [];
+
     while j < len(tokens):
 
           #print("i: %d j: %d k: %d   %s" % (i, j, k, tokens));
 
+
           # Parentheses: extract expr
           if tokens[j] == '(':
-             m = j + 1;
-             c = 1;
-             while m < k:
-                   if   tokens[m] == '(': c = c + 1;
-                   elif tokens[m] == ')': c = c - 1;
-                   if c == 0: break;
-                   m = m + 1;
-             return [ parsetree(tokens[j+1:m]) ] + parsetree(tokens[m+1:]) ;
-             
+             if tokens[k] == ')' and '(' not in tokens[j+1:k]:
+                return parsetree(tokens[j+1:k]);
+             m = 1;
+             #i = j;
+             while j<k+1:
+                   j += 1;
+                   if tokens[j] == '(': m += 1;
+                   if tokens[j] == ')': m -= 1;
+                   if m==0: break;
+
+
+
           elif tokens[j] == "or":
              if j>i:
                  return [
@@ -233,8 +239,6 @@ def parsetree(tokens):
                    "or",
                    parsetree(tokens[j+1:k+1])
                  ];
-             else:
-                 return [ "or" , parsetree(tokens[j+1:k+1]) ];
 
 
           elif tokens[j] == "and":
@@ -244,42 +248,19 @@ def parsetree(tokens):
                    "and",
                    parsetree(tokens[j+1:k+1])
                  ];
-             else:
-                 return [ "and" ,  parsetree(tokens[j+1:k+1]) ];
-
-
-#          elif tokens[j] == "=":
-#             return [
-#               parsetree(tokens[i:j]),
-#               ">",
-#               parsetree(tokens[j+1:j+2])
-#             ];
-#             i = j+1;
-#
-#          elif tokens[j] == ">":
-#             return [ [
-#               parsetree(tokens[i:j]),
-#               ">",
-#               parsetree(tokens[j+1:j+2])
-#             ],  parsetree(tokens[j+2:k+1])]; 
-#
-#          elif tokens[j] == "<":
-#             return [
-#               parsetree(tokens[i:j]),
-#               "<",
-#               parsetree(tokens[j+1:j+2])
-#             ];
 
 
           elif tokens[j] == "not":
-             return [
-               None,
-               "not",
-               parsetree(tokens[j+1:k+1])
-             ];
+             if j+1==k or (tokens[j+1]=="(" and tokens[k]==")" and "(" not in tokens[j+2:k]):
+                 return [
+                   None,
+                   "not",
+                   parsetree(tokens[j+1:k+1])
+                 ];
 
 
           elif tokens[j] == "shuf":
+             if j+1==k or (tokens[j+1]=="(" and tokens[k]==")" and "(" not in tokens[j+2:k]):
                return [ 
                  None,
                  "shuf",
@@ -287,22 +268,13 @@ def parsetree(tokens):
                ];
 
 
-#          elif tokens[j].isdigit():
-#               formerk = k;
-#               while k > 0:
-#                     if tokens[k] == ',':
-#                        #expr = tokens[j+1:k];
-#                        return [
-#                                parsetree(tokens[j:k]),
-#                                tokens[k],
-#                                parsetree(tokens[k+1:formerk+1])
-#                        ];
-#                     k = k - 1
-#               return [
-#                      None,
-#                      tokens[j],
-#                      parsetree(tokens[j+1:formerk+1])
-#               ];
+          elif tokens[j].endswith("x") and tokens[j][:-1].isdigit():
+                   if j+1==k or (tokens[j+1]=="(" and tokens[k]==")" and "(" not in tokens[j+2:k]):
+                       return [
+                              tokens[j][:-1],
+                              "x",
+                              parsetree(tokens[j+1:k+1])
+                       ];
 
 
           elif tokens[j] == ",":
@@ -311,8 +283,6 @@ def parsetree(tokens):
                  ",",
                  parsetree(tokens[j+1:k+1])
                ];
-
-          #else: return tokens[j];
 
           j = j + 1;
 
@@ -348,7 +318,6 @@ def searchtag(db, query):
     res = [];
 
     relop = "x"
-    #print("searchtag: "+str(query));
     if isinstance(query, str):
        field = "tags";
        value = query;
@@ -450,8 +419,8 @@ def searchtree(db, tree):
               return t;
 
 
-           elif tree[1].isdigit():
-              n = int(tree[1]);
+           elif tree[1] == "x":
+              n = int(tree[0]);
               t = searchtree(db, tree[2]);
               random.shuffle(t);
               return t[0:n]

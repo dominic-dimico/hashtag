@@ -44,11 +44,16 @@ if __name__ == '__main__':
   else:
     if args.query:      query = args.query;
     elif args.search:   query = " ".join(args.search);
+
+    import pprint;
     tokens = hashtag.tokenize(query);
+    #pprint.pprint(tokens);
     tree = hashtag.parsetree(tokens);
+    #pprint.pprint(tree);
     res = hashtag.searchtree(db, tree);
+    #pprint.pprint(res[:6]);
 
   if res:
      for r in res:
          print(r)
-         #pass
+         pass
