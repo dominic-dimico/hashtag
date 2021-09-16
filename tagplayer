@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import hashtag
+import toolbelt
 import smartlog
 import mplayer
 import time
@@ -9,31 +10,82 @@ import code
 
 class HashtagPlayer(mplayer.Player):
 
-    log = smartlog.Smartlog();
-    playlist = [];
+
+    log       = smartlog.Smartlog();
+    cursor    = toolbelt.coordinates.Cursor();
+    playlist  = [];
+
 
     def __init__(self):
         args = "-ao alsa:device=default"
+        self.db = hashtag.parsedb("database.tag");
+        self.kb = toolbelt.keybindings.KeyBindings(bindings={
+          'n' : (self.next, None),
+          'p' : (self.prev,  None),
+        }
+        );
         super().__init__(args);
+
+
+    def pathindex(self, path):
+        for index in range(len(self.db)):
+            if self.db[index]["path"] == path:
+               return index;
+        return -1;
+
+
+    def tag(self, s):
+        row = self.paths[self.i.get()] + ";" + s;
+        ref = hashtag.parserow(row.split(";"));
+        index = self.pathindex(self.paths[self.i.get()]);
+        if index > 0:
+              dbref = self.db[index];
+              newref = hashtag.mergerows(dbref, ref); 
+              self.db[index] = newref;
+        else: self.db.append(ref);
+
 
     def is_running(self):
         if self.filepath: return True;
         else:             return False;
 
-    def play(self, path):
-        self.loadfile(path);
+
+    def current_path(self):
+        return self.playlist[
+          self.cursor.x
+        ];
+
+
+    def load(self, playlist):
+        if isinstance(playlist, str):
+           playlist = [playlist];
+        self.playlist  = playlist;
+
+
+    def prev(self):
+        self.cursor.left();
+        self.play();
+
+
+    def next(self):
+        self.cursor.right();
+        self.play();
+
+
+    def play(self):
         if self.paused:
            self.pause();
+        else: self.loadfile(
+                self.current_path()
+              );
         while self.is_running():
               time.sleep(1); 
 
-    def interpret(self):
-        while True:
-              x = log.gather(['command']);
 
     
 
 htp = HashtagPlayer();
-path = "/home/dominic/mus/electronic/dj-icey/reflex-speed.mp3"
-htp.play(path);
+htp.playlist = sys.argv[1:];
+
+htp.play();
 
