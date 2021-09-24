@@ -43,11 +43,11 @@ class ImageViewer():
         self.image_on_canvas = self.cv.create_image(xoff, yoff, anchor='nw', image=self.photo);
         self.cv.itemconfig(self.image_on_canvas, image=self.photo);
 
-        index = self.pathindex(path);
+        index = self.ht.pathindex(path);
         if index > -1:
            tags = "";
-           for key in self.db[index].keys():
-               val = self.db[index][key];
+           for key in self.ht.db[index].keys():
+               val = self.ht.db[index][key];
                if key=="tags":   tags += "\n".join(val) + "\n";
                elif key=="path": pass;
                else:             tags += "\n" + key + ": " + ','.join(val);
@@ -101,21 +101,14 @@ class ImageViewer():
 
 
 
-    def pathindex(self, path):
-        for index in range(len(self.db)):
-            if self.db[index]["path"] == path:
-               return index;
-        return -1;
-
-
     def docommand(self, event):
        s = self.e.get();
        cmds = s.split(" ");
        if cmds[0] == "ht":
           query = " ".join(cmds[1:]);
-          tokens = hashtag.tokenize(query);
-          tree = hashtag.parsetree(tokens);
-          res = hashtag.searchtree(self.db, tree);
+          tokens = self.ht.tokenize(query);
+          tree = self.ht.parsetree(tokens);
+          res = self.ht.searchtree(self.ht.db, tree);
           self.paths=res;
           self.i.set(0);
           self.n = len(self.paths);
@@ -133,8 +126,8 @@ class ImageViewer():
        elif cmds[0] == "delete":
           self.e.delete(0, tk.END);
           os.remove(self.paths[self.i.get()]);
-          dbindex = self.pathindex(self.paths[self.i.get()]);
-          self.db.pop(dbindex);
+          dbindex = self.ht.pathindex(self.paths[self.i.get()]);
+          self.ht.db.pop(dbindex);
           self.n = len(self.paths);
           self.refresh(event, 1);
           self.cv.focus_set();
@@ -154,13 +147,13 @@ class ImageViewer():
 
     def tagwith(self, s):
         row = self.paths[self.i.get()] + ";" + s;
-        ref = hashtag.parserow(row.split(";"));
-        index = self.pathindex(self.paths[self.i.get()]);
+        ref = self.ht.parserow(row.split(";"));
+        index = self.ht.pathindex(self.paths[self.i.get()]);
         if index > 0:
-              dbref = self.db[index];
-              newref = hashtag.mergerows(dbref, ref); 
-              self.db[index] = newref;
-        else: self.db.append(ref);
+              dbref = self.ht.db[index];
+              newref = self.ht.mergerows(dbref, ref); 
+              self.ht.db[index] = newref;
+        else: self.ht.db.append(ref);
        
 
     def rate(self, event, val):
@@ -170,7 +163,7 @@ class ImageViewer():
 
     def writeout(self, event):
         try: 
-          hashtag.rows2file(self.db, filename="database.tag");
+          self.ht.writeout(self.ht.db, filename="database.tag");
         except Exception as e:
           print(e);
         sys.exit(1);
@@ -240,7 +233,7 @@ class ImageViewer():
         self.slide = False;
         self.speed = 1;
 
-        self.db = hashtag.parsedb("database.tag");
+        self.ht = hashtag.HashTagger("database.tag");
         self.paths = sys.argv[1:];
         self.n = len(self.paths);
 

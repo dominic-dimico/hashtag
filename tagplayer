@@ -6,9 +6,29 @@ import smartlog
 import mplayer
 import time
 import code
+import toolbelt
+import queue
+import getch
+import sys
+import os
+
+
+import fcntl
+import selectors
+orig_fl = fcntl.fcntl(sys.stdin, fcntl.F_GETFL)
+fcntl.fcntl(sys.stdin, fcntl.F_SETFL, orig_fl | os.O_NONBLOCK)
+
+
+
+#import select
+#def getchar(block=True):
+#  if block or select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+#    return sys.stdin.read(1)
+#  return False;
 
 
 class HashtagPlayer(mplayer.Player):
+
 
 
     log       = smartlog.Smartlog();
@@ -16,38 +36,182 @@ class HashtagPlayer(mplayer.Player):
     playlist  = [];
 
 
+
     def __init__(self):
-        args = "-ao alsa:device=default"
-        self.db = hashtag.parsedb("database.tag");
-        self.kb = toolbelt.keybindings.KeyBindings(bindings={
-          'n' : (self.next, None),
-          'p' : (self.prev,  None),
-        }
-        );
+        args = "-quiet -ao alsa:device=default"
         super().__init__(args);
+        self.ht = hashtag.HashTagger();
+        self.kb = toolbelt.keybindings.KeyBindings(bindings=
+            {
+              'q' : (sys.exit,  0),
+              '*' : (self.setvol,  10),
+              '/' : (self.setvol, -15),
+              'n' : (self.next, None),
+              'p' : (self.prev, None),
+              'h' : (self.seek, -10.0),
+              'l' : (self.seek,  10.0),
+              ' ' : (self.play, None),
+              '1' : (self.rate, 1),
+              '2' : (self.rate, 2),
+              '3' : (self.rate, 3),
+              '4' : (self.rate, 4),
+              '5' : (self.rate, 5),
+            }
+        );
+        self.ac = toolbelt.keybindings.AutoCompleter();
+        self.ac.prints = False;
+        self.ac.words += self.ht.tagslist();
+        self.acform   = "";
+        self.im = False;
+        self.cursor.xwrap = True;
+        m_selector = selectors.DefaultSelector()
+        m_selector.register(sys.stdin, selectors.EVENT_READ, None)
 
 
-    def pathindex(self, path):
-        for index in range(len(self.db)):
-            if self.db[index]["path"] == path:
-               return index;
-        return -1;
+    def rate(self, rating):
+        self.ht.tagwith(
+          self.current_path(),
+          "rating=%d" % rating
+        );
 
 
-    def tag(self, s):
-        row = self.paths[self.i.get()] + ";" + s;
-        ref = hashtag.parserow(row.split(";"));
-        index = self.pathindex(self.paths[self.i.get()]);
-        if index > 0:
-              dbref = self.db[index];
-              newref = hashtag.mergerows(dbref, ref); 
-              self.db[index] = newref;
-        else: self.db.append(ref);
+    def tagwith(self, args):
+        self.ht.tagwith(
+          self.current_path(),
+          self.ac.input
+        );
+
+
+    def getkey(self, args):
+        key = None;
+        try: 
+           key = getch.getch();
+           args['naptime'] = .01;
+           args['counter'] =   1;
+        except OverflowError: 
+            if args['counter'] > 100:
+               args['naptime'] =  .2;
+        args['key'] = key;
+        return args;
+
+
+    def interpreter_mode(self, args):
+        args = self.getkey(args);
+        if args['key']: 
+           if args['key'] != '\n': 
+              args['queue'].put({
+                  'input' : self.ac.handle(args['key']),
+              })
+           else: 
+              if self.ac.input != "":
+                 self.tagwith(self.ac.input);
+              self.ac.input="";
+              self.im=False;
+              args['queue'].put({'input' : ''})
+              print();
+        return args;
+        
+
+
+    def shortcut_mode(self, args):
+        args = self.getkey(args);
+        if args['key']: 
+           ret = self.kb.handle(args['key']);
+           if args['key']!="\n":
+              args['queue'].put({
+                  'input' : args['key'],
+              })
+           else: self.next();
+           if args['key']=='\t': 
+              self.im = True;
+              self.ac.input = "";
+        return args;
+
+
+
+    def input_handler(self, args):
+        if self.im: args = self.interpreter_mode(args);
+        else:       args = self.shortcut_mode(args);
+        return args;
+
+
+
+    def output_handler(self, args):
+        try:
+            args.update(
+                 args['queue'].get(block=False)
+            );
+            args['naptime'] = .01;
+            args['counter'] =   1;
+        except Exception:
+            if args['counter'] > 100:
+               args['naptime'] =  .2;
+            pass;
+        status = "pending...";
+        try:
+           if (
+                hasattr(self,'time_pos')      and 
+                hasattr(self,'stream_end')    and 
+                hasattr(self,'audio_bitrate') and
+                self.audio_bitrate > 0
+              ):
+                 status = "%6.2f / %6.2f" % (
+                      self.time_pos, 
+                      self.stream_end/self.audio_bitrate,
+                 );
+           else: self.introspect();
+        except Exception:
+               self.introspect();
+        sp = ' ' * (40 - len(args['input']));
+        self.log.previous_line();
+        ref = self.ht.db[self.ht.pathindex(self.filepath)];
+        tags = " ".join(ref["tags"]);
+        self.log.reprint("{:<20} - {:>20} : {:>54}\n".format(
+           self.log.t.red(self.single(ref["artist"])[:10]), 
+           self.log.t.yellow(self.single(ref["title"])[:10]), 
+           self.log.t.green(tags)
+        ));
+        self.log.reprint("> {:<48} {:>37}".format(
+           self.log.t.magenta(args['input'].strip()[:48]), 
+           self.log.t.blue(status[:29])
+        ));
+        return args;
+
+
+    def single(self, l):
+        if isinstance(l, list):
+           if len(l) > 0:
+              return l[0];
+        else: return l;
+
+
+    def run(self):
+        q = queue.Queue();
+        self.p  = toolbelt.poller.Poller([
+         {
+           'function' : self.output_handler,
+           'queue'    : q,
+           'naptime'  : .2,
+           'input'    : '',
+           'main'     : self,
+         },
+         {
+           'function' : self.input_handler,
+           'queue'    : q,
+           'naptime'  : .1,
+           'input'    : '',
+         },
+        ])
+        self.play(pauseplay=False);
+        self.play();
+        self.p.poll();
+
 
 
     def is_running(self):
         if self.filepath: return True;
         else:             return False;
+
 
 
     def current_path(self):
@@ -56,36 +220,47 @@ class HashtagPlayer(mplayer.Player):
         ];
 
 
+
     def load(self, playlist):
         if isinstance(playlist, str):
            playlist = [playlist];
-        self.playlist  = playlist;
+        self.playlist = playlist;
+        self.cursor.xmax  = len(playlist)-1;
+        self.cursor.x     = 0;
 
 
     def prev(self):
         self.cursor.left();
-        self.play();
+        self.play(pauseplay=False);
+
 
 
     def next(self):
         self.cursor.right();
-        self.play();
+        self.play(pauseplay=False);
 
 
-    def play(self):
-        if self.paused:
-           self.pause();
+
+    from subprocess import call
+    def setvol(self, multiplier):
+        if multiplier < 0: sign = '-'
+        else:              sign = '+'
+        cmd = "amixer -D pulse sset Master %d%%%s" % (multiplier, sign);
+        call(cmd.split())
+
+
+
+    def play(self, pauseplay=True):
+        if pauseplay: self.pause();
         else: self.loadfile(
-                self.current_path()
+                 self.current_path()
               );
-        while self.is_running():
-              time.sleep(1); 
 
 
-    
 
-htp = HashtagPlayer();
-htp.playlist = sys.argv[1:];
+if __name__ == "__main__":
 
-htp.play();
+    htp = HashtagPlayer();
+    htp.load(sys.argv[1:]);
+    htp.run();
 

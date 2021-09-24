@@ -19,39 +19,34 @@ if __name__ == '__main__':
   parser.add_argument('-x', '--delete',  help='Paths to delete',  default=None)
   parser.add_argument('-t', '--tags',    help='List tags',        default=False, action="store_true")
   parser.add_argument('search', metavar='query', type=str, nargs='*', help='Search term')
-
   args = parser.parse_args()
 
   if not args.file:
      args.file = "database.tag"
 
-  db = hashtag.parsedb(args.file);
+  ht  = hashtag.HashTagger(args.file);
   res = None;
 
   if args.input: 
-       queries = hashtag.parsedb(args.input);
+       queries = ht.parsedb(args.input);
 
   elif args.delete:
-       paths = hashtag.file2rows(args.delete);
+       paths = ht.file2rows(args.delete);
        paths = [p[0] for p in paths];
-       hashtag.delete_entries(paths);
+       ht.delete_entries(paths);
 
   elif args.tags:
-       ts = hashtag.tagslist(db);
+       ts = ht.tagscount();
+       mx = max([len(t) for [t, c] in ts]);
        for t in ts:
-           print(t);
+           sp = ' ' * (mx-len(t[0]));
+           print("%s%s %4d" % (t[0], sp, t[1]));
 
   else:
-    if args.query:      query = args.query;
+    if   args.query:    query = args.query;
     elif args.search:   query = " ".join(args.search);
 
-    import pprint;
-    tokens = hashtag.tokenize(query);
-    #pprint.pprint(tokens);
-    tree = hashtag.parsetree(tokens);
-    #pprint.pprint(tree);
-    res = hashtag.searchtree(db, tree);
-    #pprint.pprint(res[:6]);
+    res = ht.search(query);
 
   if res:
      for r in res:

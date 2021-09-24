@@ -4,10 +4,9 @@ import argparse
 import hashtag
 import ripoff
 
-from pprint import pprint as pp
-
 
 if __name__ == '__main__':
+
 
   parser = argparse.ArgumentParser()
   parser.add_argument('-q', '--query',       help='Search term',       default=None)
@@ -17,32 +16,36 @@ if __name__ == '__main__':
   #parser.add_argument('-f', '--file',        help='Database file',     default=None)
   args = parser.parse_args()
 
+
   if args.music:
 
+     ht  = hashtag.HashTagger();
+     rip = ripoff.YouTubeRipper();
+
      if args.query:
-        songrows = ripoff.songs2rows([args.query]);
-        hashtag.append_entries(songrows);
+        songrows = rip.songs2rows([args.query]);
+        ht.append_entries(songrows);
 
      elif args.input:
         inputfile = open(args.input)
-        songs = inputfile.readlines();
-        songs = [l.strip() for l in songs];
-        songrows = ripoff.songs2rows(songs);
+        songs     = inputfile.readlines();
+        songs     = [l.strip() for l in songs];
+        songrows  = rip.songs2rows(songs);
 
-     musicdb = hashtag.parserows(songrows);
-     ripoff.download_music(musicdb);
-     hashtag.append_entries(songrows);
+     musicdb = ht.parserows(songrows);
+     rip.download_music(musicdb);
+     ht.append_entries(songrows);
+
 
   else:
 
      if args.query:
-
-        videos = ripoff.youtube_search(
+        videos = rip.youtube_search(
           args.query,
           args.max_results
         );
-        videos = ripoff.filter_downloaded(videos);
-        videos = ripoff.vim_select(videos);
-        ripoff.download_vids(
-          ripoff.video_urls(videos)
+        videos = rip.filter_downloaded(videos);
+        videos = rip.vim_select(videos);
+        rip.download_vids(
+          rip.video_urls(videos)
         )
