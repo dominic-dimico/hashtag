@@ -22,7 +22,7 @@ class YouTubeRipper():
     # Need developer keys
     ################################################################################
 
-    def __init__(self, configfile="/home/dominic/src/hashtag/ripper.cfg"):
+    def __init__(self, configfile="/home/dominic/.config/hashtag/ripper.cfg"):
         config = configparser.ConfigParser();
         config.read(configfile);
         self.developer_key       = config['youtube']['developer_key']
