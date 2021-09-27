@@ -13,6 +13,8 @@ import configparser
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+from hashtag.hashtag import HashTagger
+
 
 
 class YouTubeRipper():
@@ -22,7 +24,11 @@ class YouTubeRipper():
     # Need developer keys
     ################################################################################
 
-    def __init__(self, configfile="/home/dominic/.config/hashtag/ripper.cfg"):
+    def __init__(self, 
+       hashtagdbfile="/home/dominic/mus/database.tag", 
+       configfile="/home/dominic/.config/hashtag/ripper.cfg",
+    ):
+        self.ht = HashTagger(hashtagdbfile);
         config = configparser.ConfigParser();
         config.read(configfile);
         self.developer_key       = config['youtube']['developer_key']
@@ -170,8 +176,8 @@ class YouTubeRipper():
     ################################################################################
     def filter_excluded(self, videos, excluded_ids):
         potential_ids = [v[0] for v in videos]
-        common_ids    = hashtag.intersect(excluded_ids, potential_ids);
-        filtered_ids  = hashtag.difference(potential_ids, common_ids);
+        common_ids    = self.ht.intersect(excluded_ids, potential_ids);
+        filtered_ids  = self.ht.difference(potential_ids, common_ids);
         # Reconstruct the tuple list
         new_videos = [];
         for filtered_id in filtered_ids:
@@ -202,3 +208,24 @@ class YouTubeRipper():
             for filename in files:
                 file_ids.append(filename.split(".")[0]);
         return self.filter_excluded(videos, file_ids);
+
+
+    def music(self, songs):
+        if isinstance(songs, str):
+           songs = [songs];
+        songrows  = self.songs2rows(songs);
+        musicdb = self.ht.parserows(songrows);
+        self.download_music(musicdb);
+        self.ht.append_entries(songrows);
+
+
+    def vids(self, query, maxResults=20):
+        videos = self.youtube_search(
+          query,
+          maxResults
+        );
+        videos = self.filter_downloaded(videos);
+        videos = self.vim_select(videos);
+        self.download_vids(
+          self.video_urls(videos)
+        )

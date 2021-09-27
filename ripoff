@@ -16,36 +16,15 @@ if __name__ == '__main__':
   #parser.add_argument('-f', '--file',        help='Database file',     default=None)
   args = parser.parse_args()
 
-
   if args.music:
-
-     ht  = hashtag.HashTagger();
      rip = ripoff.YouTubeRipper();
-
      if args.query:
-        songrows = rip.songs2rows([args.query]);
-        ht.append_entries(songrows);
-
+        songs = [args.query];
      elif args.input:
         inputfile = open(args.input)
         songs     = inputfile.readlines();
         songs     = [l.strip() for l in songs];
-        songrows  = rip.songs2rows(songs);
-
-     musicdb = ht.parserows(songrows);
-     rip.download_music(musicdb);
-     ht.append_entries(songrows);
-
-
+     rip.music(songs);
   else:
-
      if args.query:
-        videos = rip.youtube_search(
-          args.query,
-          args.max_results
-        );
-        videos = rip.filter_downloaded(videos);
-        videos = rip.vim_select(videos);
-        rip.download_vids(
-          rip.video_urls(videos)
-        )
+        rip.vids(query)

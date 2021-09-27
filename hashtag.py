@@ -80,8 +80,9 @@ class HashTagger():
             self.dbfile = open(filename);
             rows = csv.reader(self.dbfile, delimiter=';', quotechar='"')
         except Exception as e:
-            print(e);
-            sys.exit(1);
+            #print(e);
+            #sys.exit(1);
+            return [];
         rowlist = [r for r in rows];
         self.dbfile.close();
         return rowlist;
@@ -524,3 +525,36 @@ class HashTagger():
               newref = self.mergerows(dbref, ref); 
               self.db[index] = newref;
         else: self.db.append(ref);
+
+
+    def squid2ht(self, squid, tags=[], exclude=[], pk="id"):
+        squid.query("select * from %s" % (squid.table));
+        self.sqldata2ht(squid.data, tags, exclude, pk);
+
+
+    def sqldata2ht(self, data, tags=[], exclude=[], pk="id"):
+        string = "";
+        strrows = [];
+        for row in data:
+            string  += self.sqldict2str(row, tags, exclude, pk);
+            strrows += string;
+            string  += "\n";
+        self.db = parserows(strrows);
+        return string;
+
+
+    def sqldict2str(self, row, tags=[], exclude=[], pk="id"):
+        p1 = "";
+        p2 = "";
+        if pk in row: 
+           p1 += row[pk];
+        if "tags" in row: 
+           p1 = p1 + ";" + ";".join(row["tags"]);
+        for key in row.keys():
+            if key==pk or key=="tags" or key in exclude:
+               pass
+            elif key in tags:
+               p1 = p1 + ";" + row[key];
+            else:
+               p2 = p2 + ";" + key + "=" + ",".join(row[key]);
+        return res;
