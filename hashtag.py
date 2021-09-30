@@ -1,4 +1,5 @@
 #/usr/bin/python
+format_ = format
 
 import csv
 import sys
@@ -136,7 +137,7 @@ class HashTagger():
                
 
     ################################################################################
-    # Convert rows in list form to list of data structures
+    # Convert rows in list format to list of data structures
     ################################################################################
     def parserows(self, rows):
         reflist = [];

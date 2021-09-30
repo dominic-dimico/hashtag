@@ -184,6 +184,9 @@ class HashtagPlayer(mplayer.Player):
               return l[0];
         else: return l;
 
+    def quit(self):
+        sys.exit(0);
+
 
     def run(self):
         q = queue.Queue();
