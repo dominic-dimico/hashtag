@@ -1,0 +1,98 @@
+#!/usr/bin/python
+
+import mplayer
+import toolbelt
+#import smartlog
+import mplayer
+import code
+
+
+class HashtagPlayer(mplayer.Player, toolbelt.interpreter.Interpreter):
+
+
+    log       = smartlog.Smartlog();
+    cursor    = toolbelt.coordinates.Cursor();
+    playlist  = [];
+
+
+    def __init__(self):
+        args = "-quiet -ao alsa:device=default"
+        super().__init__(args);
+        self.ht = hashtag.HashTagger();
+        self.cursor.xwrap = True;
+        self.commands.update({
+               'help' : {
+                  'func' :  self.help,
+                  'args' :  None,
+                  'opts' :  { 'help' : 'print this info' }
+               }, 
+               'quit' : {
+                  'func' :  self.quit,
+                  'args' :  None,
+                  'opts' :  { 
+                    'log'  : 'Quitting program',
+                    'help' : 'quit program' 
+                  }
+               }
+        })
+
+
+    def rate(self, rating):
+        self.ht.tagwith(
+          self.current_path(),
+          "rating=%d" % rating
+        );
+
+
+    def tagwith(self, args):
+        self.ht.tagwith(
+          self.current_path(),
+          self.ac.input
+        );
+
+
+    def single(self, l):
+        if isinstance(l, list):
+           if len(l) > 0:
+              return l[0];
+        else: return l;
+
+
+    def load(self, playlist):
+        if isinstance(playlist, str):
+           playlist = [playlist];
+        self.playlist = playlist;
+        self.cursor.xmax  = len(playlist)-1;
+        self.cursor.x     = 0;
+
+
+    def prev(self):
+        self.cursor.left();
+        self.play(pauseplay=False);
+
+
+    def next(self):
+        self.cursor.right();
+        self.play(pauseplay=False);
+
+
+    def current_path(self):
+        return self.playlist[
+          self.cursor.x
+        ];
+
+
+    def play(self, pauseplay=True):
+        if pauseplay: self.pause();
+        else: self.loadfile(
+                 self.current_path()
+              );
+
+
+
+if __name__ == "__main__":
+
+    htp = HashtagPlayer();
+    htp.load(sys.argv[1:]);
+    htp.run();
+

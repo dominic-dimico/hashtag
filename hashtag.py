@@ -26,6 +26,7 @@ from pprint import pprint as pp
 
 class HashTagger():
 
+    db = None;
 
     def __init__(self, filename="database.tag"):
         self.parsedb(filename);
@@ -46,7 +47,7 @@ class HashTagger():
     ################################################################################
     def pathindex(self, path):
         for index in range(len(self.db)):
-            if self.db[index]["path"] == path:
+            if self.db[index]["id"] == path:
                return index;
         return -1;
 
@@ -60,17 +61,18 @@ class HashTagger():
            return None;
         ref = {};
         if len(row)>0:
-           ref["path"] = row[0];
+           ref["id"] = row[0];
            ref["tags"] = [];
         else: return None;
         i = 0;
         for el in row[1:]:
             eq = el.split("=");
             if len(eq) > 1:
-               ref[eq[0]] = eq[1].split(",");
+               if ',' in eq[1]:
+                  ref[eq[0]] = eq[1].split(",");
+               else: ref[eq[0]] = eq[1];
             else: ref["tags"].append(eq[0]);
         return ref;
-
 
 
     ################################################################################
@@ -100,11 +102,11 @@ class HashTagger():
           print(e);
           sys.exit(1);
         if not rows: rows = self.db;
-        rows = sorted(rows, key = lambda x: x['path']);
+        rows = sorted(rows, key = lambda x: x['id']);
         if len(rows)>1:
             for i in range(len(rows)):
                 j = (i + 1) % len(rows);
-                if rows[i]['path'] == rows[j]['path']: 
+                if rows[i]['id'] == rows[j]['id']: 
                    self.mergerows(rows[j], rows[i]);
                 ts  = rows[i]['tags'];
                 nts = []
@@ -112,7 +114,7 @@ class HashTagger():
                 rows[i]['tags'] = sorted(nts);
             for i in range(len(rows)):
                 j = (i + 1) % len(rows);
-                if rows[i]['path'] == rows[j]['path']: 
+                if rows[i]['id'] == rows[j]['id']: 
                    pass;
                 else: self.dbfile.write(self.row2str(rows[i])+"\n");
         self.dbfile.close();
@@ -123,12 +125,12 @@ class HashTagger():
     # Convert row back to string
     ################################################################################
     def row2str(self, row):
-        if "path" in row: 
-           res = row["path"]
+        if "id" in row: 
+           res = row["id"]
         if "tags" in row: 
            res = res + ";" + ";".join(row["tags"]);
         for key in row.keys():
-            if key=="path" or key=="tags":
+            if key=="id" or key=="tags":
                pass
             else:
                #print(key, row[key]);
@@ -154,7 +156,7 @@ class HashTagger():
     def mergerows(self, rowa, rowb):
         rowc = copy.copy(rowa);
         for key in rowb.keys():
-            if key == "path":
+            if key == "id":
                pass;
             elif key == "tags":
                for tag in rowb["tags"]:
@@ -219,7 +221,13 @@ class HashTagger():
         j = 0;
         tokens = [];
         while i < len(s):
-              if s[i] == '(' or s[i] == ')' or s[i] == ',' or s[i] == '=' or s[i] == '<' or s[i] == '>':
+              if (s[i] == '(' or 
+                  s[i] == ')' or 
+                  s[i] == ',' or 
+                  s[i] == '=' or 
+                  s[i] == '<' or 
+                  s[i] == '/' or 
+                  s[i] == '>'):
                  tokens.append(s[i]);
                  j = i;
               elif s[i] != " ":
@@ -340,6 +348,16 @@ class HashTagger():
         return list(set(a) - set(b))
 
 
+    def subdict(self, d):
+        dkeys = list(d.keys());
+        newd = {};
+        for dk in dkeys:
+            if self.f.search(dk):
+               newd[dk] = d[dk];
+        if len(newd)==1 and 'id' in newd:
+           return newd['id'];
+        return newd;
+
 
     ################################################################################
     # Searches for individual tag values
@@ -357,57 +375,52 @@ class HashTagger():
            relop = query[1];
            value = query[2];
 
+        f = re.compile(field);
+        v = re.compile(value);
 
         if field == "ntags":
             ntags = 0;
-            for d in self.db:
+            for i in range(len(self.db)):
+                d = self.db[i];
                 dkeys = d.keys();
                 if "tags" in dkeys:
                    ntags = len(d["tags"]);
                 if relop == "=":
                    if int(value) == ntags:
-                      res.append(d["path"]);
+                      if i not in res: res.append(i);
                 if relop == ">":
                    if ntags > int(value):
-                      res.append(d["path"]);
+                      if i not in res: res.append(i);
                 if relop == "<":
                    if ntags < int(value):
-                      res.append(d["path"]);
+                      if i not in res: res.append(i);
 
 
-        elif relop=="x":
-            for d in self.db:
+        elif relop=="=" or relop == "x":
+            for i in range(len(self.db)):
+                d = self.db[i];
+                dkeys = list(d.keys());
+                for dk in dkeys:
+                    if f.search(dk):
+                       if '#' in str(value):  
+                         if dk!="tags": continue;
+                       if v.search(str(d[dk])): 
+                          if i not in res: res.append(i);
+                       elif '!' in str(value):  
+                          if i not in res: res.append(i);
+
+
+        elif relop==">" or relop=="<":
+            for i in range(len(self.db)):
+                d = self.db[i];
                 dkeys = d.keys();
-                if field in dkeys:
-                   if value in d[field]:
-                      res.append(d["path"]);
-
-        elif relop=="=":
-            for d in self.db:
-                dkeys = d.keys();
-                if value == '?':
-                  if field not in dkeys:
-                     res.append(d["path"]);
-                elif field in dkeys:
-                  if value in d[field]:
-                     res.append(d["path"]);
-
-
-        elif relop==">":
-             for d in self.db:
-                 dkeys = d.keys();
-                 if field in dkeys:
-                    for el in d[field]:
-                        if int(el) > int(value):
-                           res.append(d["path"]);
-
-        elif relop=="<":
-             for d in self.db:
-                 dkeys = d.keys();
-                 if field in dkeys:
-                    for el in d[field]:
-                        if int(el) < int(value):
-                           res.append(d["path"]);
+                for dk in dkeys:
+                     if f.search(dk):
+                        for el in d[field]:
+                            if relop == '>' and int(el) > int(value):
+                               if i not in res: res.append(i);
+                            if relop == '<' and int(el) < int(value):
+                               if i not in res: res.append(i);
 
         return res;
 
@@ -438,7 +451,7 @@ class HashTagger():
                   )
 
                elif tree[1] == "not":
-                  paths = [d['path'] for d in db]
+                  paths = [d['id'] for d in db]
                   return self.difference(
                     paths,
                     self.searchtree(db, tree[2])
@@ -465,21 +478,101 @@ class HashTagger():
 
                elif tree[1] == "=" or tree[1] == ">" or tree[1] == "<":
                   return self.searchtag(db, tree);
-
                else:
                   return self.searchtag(db, tree);
-
            else:
                return self.searchtag(db, tree[0]);
-
         else: 
            return self.searchtag(db, tree);
 
 
+
+    def setsorter(self, tokens, i):
+        n = len(tokens);
+        self.sd = tokens[i];
+        i = i+1 if i+1<n else i;
+        self.s = re.compile(tokens[i]);
+        i = i+1 if i+1<n else i;
+        return i;
+        
+
+
+    def setfields(self, tokens):
+        i = 0;
+        n = len(tokens);
+        if '/' not in tokens:
+           self.sel = False;
+           self.f = re.compile('^id$');
+        else: 
+           self.sel = True;
+           i = tokens.index('/');
+           i = i+1 if i+1<n else i;
+        if tokens[i] in "><":
+           i = self.setsorter(tokens, i);
+           if '/' in tokens:
+              self.f = re.compile(tokens[i-1]);
+           if i+1>=n: return ['.'];
+        elif '/' in tokens:
+           self.f = re.compile(tokens[i]);
+           i = i+1 if i+1<n else i;
+           if i+1>=n: return ['.'];
+           if tokens[i] in "><":
+              i = self.setsorter(tokens, i);
+        if len(tokens[i:])==0:
+           return ['.'];
+        return tokens[i:];
+
+
+
+    def sort(self, res):
+        if not hasattr(self, 's') or not self.s:
+           self.s  = re.compile('^id$');
+           self.sd = '>';
+        if self.sd == ">": asc = False;
+        else:              asc = True;
+        import pandas;
+        df = pandas.DataFrame(res);
+        cs = [];
+        for c in list(df.columns):
+            if self.s.search(c):
+               cs += [c];
+        df = df.fillna('');
+        df = df.sort_values(by=cs, ascending=asc);
+        return df;
+
+
+    def construct(self, res):
+        subset = [];
+        #res = self.unique(res);
+        for i in res:
+            if self.db[i] not in subset:
+               subset.append(self.db[i]);
+        return subset;
+
+
+    def deconstruct(self, df):
+        cs = [];
+        for c in list(df.columns):
+            if not self.f.search(c):
+               cs += [c];
+        df = df.drop(columns=cs);
+        cs = list(df.columns)
+        if len(cs) == 1 and 'id' in cs:
+           return df['id'].to_list();
+        self.s = None;
+        self.sd = None;
+        self.f = None;
+        return df.to_dict('records');
+
+
     def search(self, query):
         tokens    = self.tokenize(query);
+        tokens    = self.setfields(tokens);
         self.tree = self.parsetree(tokens);
         res       = self.searchtree();
+        res       = self.construct(res);
+        res       = self.sort(res);
+        res       = self.deconstruct(res);
         return res;
 
 

@@ -13,7 +13,8 @@ import configparser
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-from hashtag.hashtag import HashTagger
+#from hashtag.hashtag import HashTagger
+HashTagger = hashtag.HashTagger
 
 
 
@@ -118,11 +119,15 @@ class YouTubeRipper():
     # Download music
     ################################################################################
     def download_music(self, database):
+        print(database);
         for d in database:
-            path     = d["path"];
-            query    = (self.dehyphenate(d["artist"][0]) + " " + 
-                        self.dehyphenate(d["title"][0]));
-            videos   =  self.youtube_search(query, 1);
+            path     = d["id"];
+            query    = (self.dehyphenate(d["artist"]) + " " + 
+                        self.dehyphenate(d["title"]));
+            videos   =  self.youtube_search(
+               query, 10
+            );
+            videos   =  vim_select(videos);
             urls     =  self.video_urls(videos);
             ydl_opts = {
                "outtmpl"              : path,
