@@ -108,10 +108,11 @@ class HashTagger():
                 j = (i + 1) % len(rows);
                 if rows[i]['id'] == rows[j]['id']: 
                    self.mergerows(rows[j], rows[i]);
-                ts  = rows[i]['tags'];
-                nts = []
-                [nts.append(x) for x in ts if x not in nts]
-                rows[i]['tags'] = sorted(nts);
+                if 'tags' in rows[i]:
+                   ts  = rows[i]['tags'];
+                   nts = []
+                   [nts.append(x) for x in ts if x not in nts]
+                   rows[i]['tags'] = sorted(nts);
             for i in range(len(rows)):
                 j = (i + 1) % len(rows);
                 if rows[i]['id'] == rows[j]['id']: 
@@ -126,15 +127,17 @@ class HashTagger():
     ################################################################################
     def row2str(self, row):
         if "id" in row: 
-           res = row["id"]
+              res = str(row["id"])
+        else: res = "?"
         if "tags" in row: 
            res = res + ";" + ";".join(row["tags"]);
         for key in row.keys():
             if key=="id" or key=="tags":
                pass
             else:
-               #print(key, row[key]);
-               res = res + ";" + key + "=" + ",".join(row[key]);
+               dat = row[key];
+               if isinstance(row[key], list): dat = ",".join(row[key]);
+               res = res + ";" + key + "=" + str(dat);
         return res;
                
 

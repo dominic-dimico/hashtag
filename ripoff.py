@@ -1,5 +1,4 @@
 #!/usr/bin/python
-
 import youtube_dl
 import toolbelt
 import os
@@ -26,8 +25,8 @@ class YouTubeRipper():
     ################################################################################
 
     def __init__(self, 
-       hashtagdbfile="/home/dominic/mus/database.tag", 
-       configfile="/home/dominic/.config/hashtag/ripper.cfg",
+       hashtagdbfile=os.path.expanduser('~')+"/mus/database.tag", 
+       configfile=os.path.expanduser('~')+"/.config/hashtag/ripper.cfg",
     ):
         self.ht = HashTagger(hashtagdbfile);
         config = configparser.ConfigParser();
@@ -127,7 +126,7 @@ class YouTubeRipper():
             videos   =  self.youtube_search(
                query, 10
             );
-            videos   =  vim_select(videos);
+            videos   =  self.vim_select(videos);
             urls     =  self.video_urls(videos);
             ydl_opts = {
                "outtmpl"              : path,
@@ -196,7 +195,7 @@ class YouTubeRipper():
     ################################################################################
     # Filter out videos which have been banned
     ################################################################################
-    def filter_by_file(self, videos, filename="/home/dominic/vid/downloaded/excluded.txt"):
+    def filter_by_file(self, videos, filename=os.path.expanduser('~')+"/vid/downloaded/excluded.txt"):
         excluded_file = open(filename);
         excluded_ids = excluded_file.readlines();
         excluded_ids = [vid.strip() for vid in ids];
@@ -207,7 +206,7 @@ class YouTubeRipper():
     ################################################################################
     # Filter out videos that have already been downloaded
     ################################################################################
-    def filter_downloaded(self, videos, basedir="/home/dominic/vid/downloaded"):
+    def filter_downloaded(self, videos, basedir=os.path.expanduser('~')+"/vid/downloaded"):
         file_ids = []
         for (root, subdirs, files) in os.walk(basedir):
             for filename in files:
