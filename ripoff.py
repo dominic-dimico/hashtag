@@ -23,7 +23,6 @@ class YouTubeRipper():
     ################################################################################
     # Need developer keys
     ################################################################################
-
     def __init__(self, 
        hashtagdbfile=os.path.expanduser('~')+"/mus/database.tag", 
        configfile=os.path.expanduser('~')+"/.config/hashtag/ripper.cfg",
